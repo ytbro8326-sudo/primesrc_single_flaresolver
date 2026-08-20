@@ -565,6 +565,42 @@ def stage1_fetch_api_keys(
         for url, err in errors:
             log_warn(f"  {url}  → {err}")
 
+    # ── Mark ALL processed embed_urls as done in already_processed_urls_list.txt ──
+    # This ensures that on the next run, every URL we just attempted (found OR
+    # not-found) is skipped — so tmdb_movie_input_list.txt entries are never
+    # re-processed once they have been through Stage 1 at least once.
+    if processed_urls_file and embed_urls:
+        # Re-read what is already on disk to avoid writing duplicates
+        existing_on_disk: set[str] = set()
+        if processed_urls_file.exists():
+            for _l in processed_urls_file.read_text(encoding="utf-8").splitlines():
+                _l = _l.strip()
+                if _l and not _l.startswith("#"):
+                    existing_on_disk.add(_l)
+                    # Also index by bare tmdb_id so we catch both formats
+                    _tid = _extract_tmdb_id(_l)
+                    if _tid:
+                        existing_on_disk.add(_tid)
+
+        new_entries: list[str] = []
+        for _url in embed_urls:
+            _tid = _extract_tmdb_id(_url)
+            # Skip if the full URL or its bare tmdb_id is already recorded
+            if _url not in existing_on_disk and (_tid not in existing_on_disk if _tid else True):
+                new_entries.append(_url)
+
+        if new_entries:
+            lines_to_append = "\n".join(new_entries) + "\n"
+            target_pf = _append_split_text(
+                processed_urls_file, lines_to_append, max_bytes=MAX_OUTPUT_FILE_SIZE
+            )
+            log_ok(
+                f"[Stage 1] Marked {len(new_entries)} URL(s) as processed → {target_pf}  "
+                f"(found: {len(found_lines)}, not-found/error: {len(not_found_embed_urls)})"
+            )
+        else:
+            log_info("[Stage 1] All processed URLs were already in already_processed_urls_list.txt — nothing new to mark.")
+
     return unique_options
 
 
