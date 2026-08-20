@@ -1,9 +1,6 @@
 name: PrimeSrc Pipeline
 
 on:
-  schedule:
-    # Runs daily at 00:00 UTC automatically for TMDB Now Playing & Top Rated movies
-    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -11,10 +8,10 @@ on:
         required: true
         type: choice
         options:
-          - 'both (process tmdb_movie_input_list.txt AND TMDB Now-Playing/Top-Rated)'
           - 'manual_only (tmdb_movie_input_list.txt ONLY)'
+          - 'both (process tmdb_movie_input_list.txt AND TMDB Now-Playing/Top-Rated)'
           - 'latest_only (lastet_released_holly_bolly_movies_list.txt ONLY)'
-        default: 'both (process tmdb_movie_input_list.txt AND TMDB Now-Playing/Top-Rated)'
+        default: 'manual_only (tmdb_movie_input_list.txt ONLY)'
       latest_limit:
         description: 'Number of movies to fetch from TMDB (Now Playing + Top Rated)'
         required: false
@@ -104,20 +101,13 @@ jobs:
         run: |
           CMD="python primesrc.py"
 
-          # Automatic scheduled daily run: only process latest_released_holly_bolly_movies_list.txt (skip tmdb_movie_input_list.txt)
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "Running in automated daily schedule mode (latest Hollywood/Bollywood only)"
-            CMD="$CMD --no-manual-input --fetch-latest"
+          MODE="${{ github.event.inputs.mode }}"
+          if [[ "$MODE" == *"manual_only"* ]]; then
+            CMD="$CMD --no-latest-input --no-fetch-latest --include-manual-input"
+          elif [[ "$MODE" == *"latest_only"* ]]; then
+            CMD="$CMD --no-manual-input --include-latest-input --fetch-latest"
           else
-            # Manual run via workflow_dispatch
-            MODE="${{ github.event.inputs.mode }}"
-            if [[ "$MODE" == *"manual_only"* ]]; then
-              CMD="$CMD --no-latest-input --no-fetch-latest --include-manual-input"
-            elif [[ "$MODE" == *"latest_only"* ]]; then
-              CMD="$CMD --no-manual-input --include-latest-input --fetch-latest"
-            else
-              CMD="$CMD --include-manual-input --include-latest-input --fetch-latest"
-            fi
+            CMD="$CMD --include-manual-input --include-latest-input --fetch-latest"
           fi
 
           if [ -n "${{ github.event.inputs.latest_limit }}" ]; then
