@@ -1512,13 +1512,28 @@ def _write_summary(
     extracted_at     = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     tmdb_meta_cache: dict[int, tuple[str, Any]] = {}
 
+    def _dedup_sources_by_url(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Remove sources whose URL is already seen, keeping only the first occurrence."""
+        seen_urls: set[str] = set()
+        out: list[dict[str, Any]] = []
+        for s in sources:
+            url = s.get("url", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                out.append(s)
+        return out
+
     for tmdb_str, new_sources in new_groups.items():
         tmdb_int = int(tmdb_str)
         if tmdb_int in index:
             entry         = index[tmdb_int]
             existing_keys = {s["key"] for s in entry["_sources"]}
-            added         = [s for s in new_sources if s["key"] not in existing_keys]
+            existing_urls = {s["url"] for s in entry["_sources"]}
+            added         = [s for s in new_sources
+                             if s["key"] not in existing_keys and s["url"] not in existing_urls]
             entry["_sources"].extend(added)
+            # Re-deduplicate the full list in case old data contained URL dupes
+            entry["_sources"] = _dedup_sources_by_url(entry["_sources"])
             entry["extracted_at"] = extracted_at
             log_info(f"  tmdb={tmdb_int} — merged {len(added)} new source(s)")
         else:
@@ -1529,14 +1544,15 @@ def _write_summary(
                 log_ok(f"  tmdb={tmdb_int} — '{title}'  imdb={imdb_id}")
             else:
                 title, imdb_id = tmdb_meta_cache[tmdb_int]
+            deduped = _dedup_sources_by_url(list(new_sources))
             index[tmdb_int] = {
                 "tmdb_id":      tmdb_int,
                 "imdb_id":      imdb_id,
                 "title":        title,
                 "extracted_at": extracted_at,
-                "_sources":     list(new_sources),
+                "_sources":     deduped,
             }
-            log_ok(f"  tmdb={tmdb_int} — '{title}'  sources: {len(new_sources)}")
+            log_ok(f"  tmdb={tmdb_int} — '{title}'  sources: {len(deduped)}")
 
     sorted_entries = sorted(index.values(), key=lambda x: x["tmdb_id"])
     for i, entry in enumerate(sorted_entries, 1):
@@ -1810,13 +1826,28 @@ def github_sync_summary(
     extracted_at     = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     tmdb_meta_cache: dict[int, tuple[str, Any]] = {}
 
+    def _dedup_sources_by_url(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Remove sources whose URL is already seen, keeping only the first occurrence."""
+        seen_urls: set[str] = set()
+        out: list[dict[str, Any]] = []
+        for s in sources:
+            url = s.get("url", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                out.append(s)
+        return out
+
     for tmdb_str, new_sources in new_groups.items():
         tmdb_int = int(tmdb_str)
         if tmdb_int in index:
             entry         = index[tmdb_int]
             existing_keys = {s["key"] for s in entry["_sources"]}
-            added         = [s for s in new_sources if s["key"] not in existing_keys]
+            existing_urls = {s["url"] for s in entry["_sources"]}
+            added         = [s for s in new_sources
+                             if s["key"] not in existing_keys and s["url"] not in existing_urls]
             entry["_sources"].extend(added)
+            # Re-deduplicate the full list in case old data contained URL dupes
+            entry["_sources"] = _dedup_sources_by_url(entry["_sources"])
             entry["extracted_at"] = extracted_at
             log_info(f"  tmdb={tmdb_int} — merged {len(added)} new source(s)")
         else:
@@ -1827,14 +1858,15 @@ def github_sync_summary(
                 log_ok(f"  tmdb={tmdb_int} — '{title}'  imdb={imdb_id}")
             else:
                 title, imdb_id = tmdb_meta_cache[tmdb_int]
+            deduped = _dedup_sources_by_url(list(new_sources))
             index[tmdb_int] = {
                 "tmdb_id":      tmdb_int,
                 "imdb_id":      imdb_id,
                 "title":        title,
                 "extracted_at": extracted_at,
-                "_sources":     list(new_sources),
+                "_sources":     deduped,
             }
-            log_ok(f"  tmdb={tmdb_int} — '{title}'  sources: {len(new_sources)}")
+            log_ok(f"  tmdb={tmdb_int} — '{title}'  sources: {len(deduped)}")
 
     sorted_entries = sorted(index.values(), key=lambda x: x["tmdb_id"])
     for i, entry in enumerate(sorted_entries, 1):
