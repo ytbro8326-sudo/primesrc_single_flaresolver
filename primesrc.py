@@ -305,34 +305,65 @@ class ServerOption:
 
 # ═══════════════════════════════════════════════════════════════
 # HOST PRIORITY CONFIGURATION
-# 1st: voe.sx (host_id: 48)
-# 2nd: bysejikaue / filemoon (host_id: 66)
-# 3rd: luluvdoo (host_id: 68)
-# 4th: savefiles (host_id: 69)
-# 5th: dood (host_id: 42)
-# 6th: streamta.site (host_id: 43)
-# 7th: filenoons / filelions (host_id: 64)
-# 8th: streamwish.to (host_id: 65)
+# Ordered by real-world usage stats (highest traffic first)
+#  1st: voe.sx        (host_id: 48)  – 42.17%
+#  2nd: dood.watch    (host_id: 42)  – 36.35%
+#  3rd: bysejikaue / filemoon (host_id: 66) – 6.99%
+#  4th: youtube.com   (host_id: 19)  – 5.16%
+#  5th: mixdrop       (host_id: ?)   – 3.14%
+#  6th: filelions.to  (host_id: 64)  – 1.67%
+#  7th: streamta.site (host_id: 43)  – 1.35%
+#  8th: luluvdoo.com  (host_id: 68)  – 1.00%
+#  9th: streamwish.to (host_id: 65)  – 0.67%
+# 10th: archive.org   (host_id: ?)   – 0.56%
+# 11th: vidmoly       (host_id: 61)  – 0.43%
+# 12th: savefiles.com (host_id: 69)  – 0.13%
+# 13th: vidnest.io    (host_id: ?)   – 0.12%
+# 14th: dailymotion   (host_id: ?)   – 0.11%
+# 15th: streamplay.to (host_id: ?)   – 0.10%
+# 16th: vimeo         (host_id: ?)   – 0.02%
+# 17th: upzur.com     (host_id: ?)   – 0.02%
 # ═══════════════════════════════════════════════════════════════
 
 HOST_PRIORITY_ORDER: list[tuple[int, set[str], str]] = [
-    (48, {"voe", "voe.sx"}, "voe.sx (host_id: 48)"),
-    (66, {"bysejikaue", "bysejikuar", "bysejikuar.com", "filemoon", "filemoon.sx"}, "bysejikaue (host_id: 66)"),
-    (68, {"luluvdoo", "luluvdoo.com", "lulu"}, "luluvdoo (host_id: 68)"),
-    (69, {"savefiles", "savefiles.com", "savefile"}, "savefiles (host_id: 69)"),
-    (42, {"dood", "dood.watch", "doodstream", "ds2play"}, "dood (host_id: 42)"),
-    (43, {"streamta", "streamta.site", "streamtape", "streamtape.com"}, "streamta.site (host_id: 43)"),
-    (64, {"filenoons", "filelions", "filelions.to", "filenoon"}, "filenoons (host_id: 64)"),
-    (65, {"streamwish", "streamwish.to"}, "streamwish.to (host_id: 65)"),
+    (48,  {"voe", "voe.sx"},                                                          "voe.sx (host_id: 48)"),
+    (42,  {"dood", "dood.watch", "doodstream", "ds2play"},                            "dood (host_id: 42)"),
+    (66,  {"bysejikaue", "bysejikuar", "bysejikuar.com", "filemoon", "filemoon.sx"},  "bysejikaue (host_id: 66)"),
+    (19,  {"youtube", "youtube.com", "youtu.be"},                                     "youtube (host_id: 19)"),
+    (-1,  {"mixdrop", "mixdrop.ag", "mixdrop.co"},                                    "mixdrop (host_id: unknown)"),
+    (64,  {"filenoons", "filelions", "filelions.to", "filenoon"},                     "filelions (host_id: 64)"),
+    (43,  {"streamta", "streamta.site", "streamtape", "streamtape.com"},              "streamta.site (host_id: 43)"),
+    (68,  {"luluvdoo", "luluvdoo.com", "lulu"},                                       "luluvdoo (host_id: 68)"),
+    (65,  {"streamwish", "streamwish.to"},                                             "streamwish.to (host_id: 65)"),
+    (-2,  {"archive.org", "archive"},                                                  "archive.org (host_id: unknown)"),
+    (61,  {"vidmoly", "vidmoly.me", "vidmoly.biz"},                                   "vidmoly (host_id: 61)"),
+    (69,  {"savefiles", "savefiles.com", "savefile"},                                  "savefiles (host_id: 69)"),
+    (-3,  {"vidnest", "vidnest.io"},                                                   "vidnest.io (host_id: unknown)"),
+    (-4,  {"dailymotion", "dailymotion.com", "www.dailymotion.com"},                  "dailymotion (host_id: unknown)"),
+    (-5,  {"streamplay", "streamplay.to"},                                             "streamplay.to (host_id: unknown)"),
+    (-6,  {"vimeo", "player.vimeo.com", "vimeo.com"},                                 "vimeo (host_id: unknown)"),
+    (-7,  {"upzur", "upzur.com"},                                                      "upzur.com (host_id: unknown)"),
 ]
 
 def get_server_priority(opt: ServerOption) -> int:
-    """Return priority rank (0 is highest priority, 999 is lowest)."""
+    """Return priority rank (0 is highest priority, 999 is lowest).
+
+    Matching logic (in order):
+      1. host_id match  — only against entries with a real positive host_id.
+         Negative host_ids in HOST_PRIORITY_ORDER are placeholder sentinels for
+         hosts whose real id is unknown; they are skipped here so a real host_id
+         from the API never accidentally matches a sentinel.
+      2. Name/keyword match — server_name is lower-cased and checked against the
+         keyword set of every entry (including unknown-id entries).
+      3. Fallback — 999 (lowest priority).
+    """
+    # Step 1: match by numeric host_id (skip sentinel negatives)
     if opt.host_id is not None:
         for rank, (target_id, _, _) in enumerate(HOST_PRIORITY_ORDER):
-            if opt.host_id == target_id:
+            if target_id > 0 and opt.host_id == target_id:
                 return rank
 
+    # Step 2: match by server name / domain keyword
     name_lower = (opt.server_name or "").lower()
     for rank, (_, keywords, _) in enumerate(HOST_PRIORITY_ORDER):
         if any(kw in name_lower for kw in keywords):
@@ -1512,28 +1543,13 @@ def _write_summary(
     extracted_at     = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     tmdb_meta_cache: dict[int, tuple[str, Any]] = {}
 
-    def _dedup_sources_by_url(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Remove sources whose URL is already seen, keeping only the first occurrence."""
-        seen_urls: set[str] = set()
-        out: list[dict[str, Any]] = []
-        for s in sources:
-            url = s.get("url", "")
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                out.append(s)
-        return out
-
     for tmdb_str, new_sources in new_groups.items():
         tmdb_int = int(tmdb_str)
         if tmdb_int in index:
             entry         = index[tmdb_int]
             existing_keys = {s["key"] for s in entry["_sources"]}
-            existing_urls = {s["url"] for s in entry["_sources"]}
-            added         = [s for s in new_sources
-                             if s["key"] not in existing_keys and s["url"] not in existing_urls]
+            added         = [s for s in new_sources if s["key"] not in existing_keys]
             entry["_sources"].extend(added)
-            # Re-deduplicate the full list in case old data contained URL dupes
-            entry["_sources"] = _dedup_sources_by_url(entry["_sources"])
             entry["extracted_at"] = extracted_at
             log_info(f"  tmdb={tmdb_int} — merged {len(added)} new source(s)")
         else:
@@ -1544,15 +1560,14 @@ def _write_summary(
                 log_ok(f"  tmdb={tmdb_int} — '{title}'  imdb={imdb_id}")
             else:
                 title, imdb_id = tmdb_meta_cache[tmdb_int]
-            deduped = _dedup_sources_by_url(list(new_sources))
             index[tmdb_int] = {
                 "tmdb_id":      tmdb_int,
                 "imdb_id":      imdb_id,
                 "title":        title,
                 "extracted_at": extracted_at,
-                "_sources":     deduped,
+                "_sources":     list(new_sources),
             }
-            log_ok(f"  tmdb={tmdb_int} — '{title}'  sources: {len(deduped)}")
+            log_ok(f"  tmdb={tmdb_int} — '{title}'  sources: {len(new_sources)}")
 
     sorted_entries = sorted(index.values(), key=lambda x: x["tmdb_id"])
     for i, entry in enumerate(sorted_entries, 1):
@@ -1826,28 +1841,13 @@ def github_sync_summary(
     extracted_at     = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     tmdb_meta_cache: dict[int, tuple[str, Any]] = {}
 
-    def _dedup_sources_by_url(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Remove sources whose URL is already seen, keeping only the first occurrence."""
-        seen_urls: set[str] = set()
-        out: list[dict[str, Any]] = []
-        for s in sources:
-            url = s.get("url", "")
-            if url and url not in seen_urls:
-                seen_urls.add(url)
-                out.append(s)
-        return out
-
     for tmdb_str, new_sources in new_groups.items():
         tmdb_int = int(tmdb_str)
         if tmdb_int in index:
             entry         = index[tmdb_int]
             existing_keys = {s["key"] for s in entry["_sources"]}
-            existing_urls = {s["url"] for s in entry["_sources"]}
-            added         = [s for s in new_sources
-                             if s["key"] not in existing_keys and s["url"] not in existing_urls]
+            added         = [s for s in new_sources if s["key"] not in existing_keys]
             entry["_sources"].extend(added)
-            # Re-deduplicate the full list in case old data contained URL dupes
-            entry["_sources"] = _dedup_sources_by_url(entry["_sources"])
             entry["extracted_at"] = extracted_at
             log_info(f"  tmdb={tmdb_int} — merged {len(added)} new source(s)")
         else:
@@ -1858,15 +1858,14 @@ def github_sync_summary(
                 log_ok(f"  tmdb={tmdb_int} — '{title}'  imdb={imdb_id}")
             else:
                 title, imdb_id = tmdb_meta_cache[tmdb_int]
-            deduped = _dedup_sources_by_url(list(new_sources))
             index[tmdb_int] = {
                 "tmdb_id":      tmdb_int,
                 "imdb_id":      imdb_id,
                 "title":        title,
                 "extracted_at": extracted_at,
-                "_sources":     deduped,
+                "_sources":     list(new_sources),
             }
-            log_ok(f"  tmdb={tmdb_int} — '{title}'  sources: {len(deduped)}")
+            log_ok(f"  tmdb={tmdb_int} — '{title}'  sources: {len(new_sources)}")
 
     sorted_entries = sorted(index.values(), key=lambda x: x["tmdb_id"])
     for i, entry in enumerate(sorted_entries, 1):
